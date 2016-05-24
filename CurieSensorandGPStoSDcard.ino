@@ -42,7 +42,7 @@ Adafruit_GPS GPS(&Serial1);
 
 // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
 // Set to 'true' if you want to debug and listen to the raw GPS sentences
-#define GPSECHO  true
+#define GPSECHO  false
 /* set to true to only log to SD when GPS has a fix, for debugging, keep it false */
 #define LOG_FIXONLY false
 
@@ -85,7 +85,7 @@ void error(uint8_t errno) {
 
 void setup()  
 {
-  Serial.begin(115200);
+  Serial.begin(9600);
   delay(5000);
   Serial.println("GPS and Sensor test!");
 
@@ -215,11 +215,11 @@ void setup()
 
   // write header to file
 
-  char  stringhdr[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx version=\"1.1\" \ncreator=\"IR84\"\nxmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\nxmlns=\"http://www.topografix.com/GPX/1/1\"\nxsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n<trk>\n<trkseg>\n";
+/*  char  stringhdr[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx version=\"1.1\" \ncreator=\"IR84\"\nxmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\nxmlns=\"http://www.topografix.com/GPX/1/1\"\nxsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n<trk>\n<trkseg>\n";
   uint8_t stringsize = strlen(stringhdr);
   logfile.write(stringhdr, stringsize);
   logfile.flush();
-  Serial.print(stringhdr);
+  Serial.print(stringhdr);*/
   
 }
 
@@ -298,7 +298,7 @@ void loop() {
       return;  // we can fail to parse a sentence in which case we should just wait for another
 
     // Sentence parsed! 
-    Serial.println("OK");
+//    Serial.println("OK");
     if (LOG_FIXONLY && !GPS.fix) {
       Serial.print("No Fix");
       return;
@@ -306,24 +306,23 @@ void loop() {
 
 // Calculate speed and distance
 
-/*  double dist = distance_on_geoid(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
-  double time_s = (p2.timestamp - p1.timestamp) / 1000.0;
-  double speed_mps = dist / time_s;
-  double speed_kph = (speed_mps * 3600.0) / 1000.0;*/
+//  double dist = distance_on_geoid(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
+//  double time_s = (p2.timestamp - p1.timestamp) / 1000.0;
+//  double speed_mps = dist / time_s;
+//  double speed_kph = (speed_mps * 3600.0) / 1000.0;
 
-    strcpy(stringptr,"<trkpt lat=\"");
+    strcpy(stringptr,"lat ");
     dtostrf(GPS.latitudeDegrees, 7, 4, stringbuffer);
     strncat(stringptr,stringbuffer, 10);
-    strncat(stringptr,"\" lon=\"", 10);
+    strncat(stringptr," lon ", 10);
     dtostrf(GPS.longitudeDegrees, 7, 4, stringbuffer);
     strncat(stringptr,stringbuffer, 10);       
-    strncat(stringptr,"\"><ele>", 10);
+    strncat(stringptr," ele ", 10);
     dtostrf(GPS.altitude, 4, 0, stringbuffer);
     strncat(stringptr,stringbuffer, 10);
-    strncat(stringptr,"</ele><time>", 12);
+    strncat(stringptr," time ", 12);
     sprintf(timebuffer,"20%d-%d-%dT%d:%d:%dZ",GPS.year,GPS.month,GPS.day,GPS.hour,GPS.minute,GPS.seconds);
     strncat(stringptr,timebuffer,25);
-    strncat(stringptr,"</time><data>", 16);
 
     strcat(stringptr, "t ");
     dtostrf(millis()/1000, 8, 2, stringbuffer);
@@ -343,21 +342,31 @@ void loop() {
     strncat(stringptr, " roll ", 6); 
     dtostrf(roll, 6, 2, stringbuffer);
     strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, " pitch ", 6); 
+    strncat(stringptr, " pitch ", 7); 
     dtostrf(pitch, 6, 2, stringbuffer);
     strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, "</data></trkpt>\n", 16);
+    strncat(stringptr, "\r\n", 2);
 
     // Rad. lets log it!
-    Serial.println("Log");
+//    Serial.println("Log");
 
     uint8_t stringsize = strlen(stringptr);
     if (stringsize != logfile.write(stringptr, stringsize))    //write the string to the SD file
         error(4);
-    if (strstr(stringptr, "trkpt")){
+    if (strstr(stringptr, "lat")){
       logfile.flush();
-      Serial.print(stringptr);
+//      Serial.print(stringptr);
     }
-    Serial.println();
+//    Serial.println();
   }
+}
+
+float convertRawAcceleration(int aRaw) {
+  // since we are using 2G range
+  // -2g maps to a raw value of -32768
+  // +2g maps to a raw value of 32767
+  
+  float a = (aRaw * 2.0) / 32768.0;
+
+  return a;
 }
