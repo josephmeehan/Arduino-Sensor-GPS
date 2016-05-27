@@ -18,10 +18,16 @@
 #include <CurieIMU.h>
 #include <MadgwickAHRS.h>
 
+#define M_PI 3.141592653589793238462643
+
+// ******************* Timer Setup **************
+unsigned long lastStreamTime = 0;     //To store the last streamed time stamp
+const int streamPeriod = 1000;          //To stream at 1Hz without using additional timers (time period(ms) =1000/frequency(Hz))
+
 // ******************* Curie Setup **************
 
 Madgwick filter;
-int factor = 300;
+int factor = 180;
 float yaw, roll, pitch;
 
 int ax, ay, az;         // accelerometer values
@@ -175,7 +181,7 @@ void setup()
   // print it out we don't suggest using anything higher than 1 Hz
 
   // Request updates on antenna status, comment out to keep quiet
-  GPS.sendCommand(PGCMD_ANTENNA);
+  //GPS.sendCommand(PGCMD_ANTENNA);
 
   delay(1000);
   // Ask for firmware version
@@ -226,139 +232,169 @@ void setup()
 uint32_t timer = millis();
 
 void loop() {
-  char stringptr [300];
+  char stringptrgps [200];
+  char stringptrsensor [200];
   char stringbuffer[10];
   char timebuffer[25];
+
+  double p1latitude=0, p2latitude=0, p1longitude=0, p2longitude=0, p1timestamp=0, p2timestamp=0;
+
+
   
-//************  Read GPS data ************
-
-//  if (! usingInterrupt) {
-    // read data from the GPS in the 'main loop'
-    char c = GPS.read();
-    // if you want to debug, this is a good time to do it!
-    if (GPSECHO)
-      if (c) Serial.print(c);
-//  }
-
-//************  Read Sensor data ************
-
-  // read raw accel/gyro measurements from device
-  CurieIMU.readMotionSensor(ax, ay, az, gx, gy, gz);
-
-  filter.updateIMU(gx / factor, gy / factor, gz / factor, ax, ay, az);
-
-  yaw = filter.getYaw()*180/3.1415;
-  roll = filter.getRoll()*180/3.1415;
-  pitch = filter.getPitch()*180/3.1415;
-
-  // these methods (and a few others) are also available
-
-  //CurieIMU.readAcceleration(ax, ay, az);
-  //CurieIMU.readRotation(gx, gy, gz);
-
-  //ax = CurieIMU.readAccelerometer(X_AXIS);
-  //ay = CurieIMU.readAccelerometer(Y_AXIS);
-  //az = CurieIMU.readAccelerometer(Z_AXIS);
-  //gx = CurieIMU.readGyro(X_AXIS);
-  //gy = CurieIMU.readGyro(Y_AXIS);
-  //gz = CurieIMU.readGyro(Z_AXIS);
-
-  // display tab-separated accel/gyro x/y/z values
-/*  Serial.print("a/g:\t");*/
-  Serial.print(ax);
-  Serial.print("\t");
-  Serial.print(ay);
-  Serial.print("\t");
-  Serial.print(az);
-  Serial.print("\t");
-  Serial.print(gx);
-  Serial.print("\t");
-  Serial.print(gy);
-  Serial.print("\t");
-  Serial.print(gz);
-  Serial.print("\t");
-  Serial.print(yaw);
-  Serial.print("\t");
-  Serial.print(roll);
-  Serial.print("\t");
-  Serial.print(pitch);
-  Serial.print("\n");
-  
-  // if a sentence is received, we can check the checksum, parse it...
-  if (GPS.newNMEAreceived()) {
-    // a tricky thing here is if we print the NMEA sentence, or data
-    // we end up not listening and catching other sentences! 
-    // so be very wary if using OUTPUT_ALLDATA and trying to print out data
+    //************  Read GPS data ************
     
-    // Don't call lastNMEA more than once between parse calls!  Calling lastNMEA 
-    // will clear the received flag and can cause very subtle race conditions if
-    // new data comes in before parse is called again.
+    //  if (! usingInterrupt) {
+        // read data from the GPS in the 'main loop'
+        char c = GPS.read();
+        // if you want to debug, this is a good time to do it!
+        if (GPSECHO)
+          if (c) Serial.print(c);
+    //  }
+    
+    //************  Read Sensor data ************
+    
+      // read raw accel/gyro measurements from device
+      CurieIMU.readMotionSensor(ax, ay, az, gx, gy, gz);
+    
+      filter.updateIMU(gx / factor, gy / factor, gz / factor, ax, ay, az);
+    
+      yaw = filter.getYaw()*180/3.1415;
+      roll = filter.getRoll()*180/3.1415;
+      pitch = filter.getPitch()*180/3.1415;
+    
+      // these methods (and a few others) are also available
+    
+      //CurieIMU.readAcceleration(ax, ay, az);
+      //CurieIMU.readRotation(gx, gy, gz);
+    
+      //ax = CurieIMU.readAccelerometer(X_AXIS);
+      //ay = CurieIMU.readAccelerometer(Y_AXIS);
+      //az = CurieIMU.readAccelerometer(Z_AXIS);
+      //gx = CurieIMU.readGyro(X_AXIS);
+      //gy = CurieIMU.readGyro(Y_AXIS);
+      //gz = CurieIMU.readGyro(Z_AXIS);
+    
+    
+    // Print Sensor data to SDcard
+    
+        strcpy(stringptrsensor,"sensor ");
+        strcat(stringptrsensor, "t ");
+        dtostrf(millis()/1000, 8, 2, stringbuffer);
+        strncat(stringptrsensor,stringbuffer, 10);
+        strncat(stringptrsensor, " aX ", 5);   
+        dtostrf(ax, 6, 2, stringbuffer);
+        strncat(stringptrsensor, stringbuffer,10);
+        strncat(stringptrsensor, " aY ", 5);   
+        dtostrf(ay, 6, 2, stringbuffer);
+        strncat(stringptrsensor, stringbuffer,10);
+        strncat(stringptrsensor, " aZ ", 5);   
+        dtostrf(az, 6, 2, stringbuffer);
+        strncat(stringptrsensor, stringbuffer,10);
+        strncat(stringptrsensor, " yaw ", 6); 
+        dtostrf(yaw, 6, 2, stringbuffer);
+        strncat(stringptrsensor, stringbuffer,10);
+        strncat(stringptrsensor, " roll ", 6); 
+        dtostrf(roll, 6, 2, stringbuffer);
+        strncat(stringptrsensor, stringbuffer,10);
+        strncat(stringptrsensor, " pitch ", 7); 
+        dtostrf(pitch, 6, 2, stringbuffer);
+        strncat(stringptrsensor, stringbuffer,10);
+        strncat(stringptrsensor, "\r\n", 2);
 
-    if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-      return;  // we can fail to parse a sentence in which case we should just wait for another
+  if ((millis() - lastStreamTime) >= streamPeriod)
+  {
+    lastStreamTime = millis();
+    
+        uint8_t stringsize = strlen(stringptrsensor);
+          if (stringsize != logfile.write(stringptrsensor, stringsize))    //write the string to the SD file
+              error(4);
+          if (strstr(stringptrsensor, "sensor")){
+            logfile.flush();
+            Serial.print(stringptrsensor);
+          }
 
-    // Sentence parsed! 
-//    Serial.println("OK");
-    if (LOG_FIXONLY && !GPS.fix) {
-      Serial.print("No Fix");
-      return;
-    }
+   }
+  // end of timer loop for sensor data 
+  
+      // if a sentence is received, we can check the checksum, parse it...
+      if (GPS.newNMEAreceived()) {
+        // a tricky thing here is if we print the NMEA sentence, or data
+        // we end up not listening and catching other sentences! 
+        // so be very wary if using OUTPUT_ALLDATA and trying to print out data
+        
+        // Don't call lastNMEA more than once between parse calls!  Calling lastNMEA 
+        // will clear the received flag and can cause very subtle race conditions if
+        // new data comes in before parse is called again.
+    
+        if (!GPS.parse(GPS.lastNMEA())){   // this also sets the newNMEAreceived() flag to false
+          Serial.println("not parsed");
+          return;  // we can fail to parse a sentence in which case we should just wait for another
+          
+        }
+        // Sentence parsed! 
+        Serial.println("OK");
+        if (LOG_FIXONLY && !GPS.fix) {
+          Serial.print("No Fix");
+          return;
+        }
+    
+    // Calculate speed and distance
+    
+    p1latitude = GPS.latitudeDegrees;
+    p1longitude = GPS.longitudeDegrees;
+    p1timestamp = GPS.milliseconds;
+    
+      double dist = distance_on_geoid(p1latitude, p1longitude, p2latitude, p2longitude);
+      double time_s = (p2timestamp - p1timestamp)/1000;  
+      double speed_mps = dist / time_s;
+      double speed_kph = (speed_mps * 3600.0) / 1000.0;
+    
+    p2latitude = p1latitude;
+    p2longitude = p1longitude;
+    p2timestamp = p1timestamp;
+    
+    
+    //Print out GPS data to SDcard
+    
+        strcpy(stringptrgps,"lat ");
+        dtostrf(GPS.latitudeDegrees, 7, 4, stringbuffer);
+        strncat(stringptrgps,stringbuffer, 10);
+        strncat(stringptrgps," lon ", 10);
+        dtostrf(GPS.longitudeDegrees, 7, 4, stringbuffer);
+        strncat(stringptrgps,stringbuffer, 10);       
+        strncat(stringptrgps," ele ", 10);
+        dtostrf(GPS.altitude, 4, 0, stringbuffer);
+        strncat(stringptrgps,stringbuffer, 10);
+        strncat(stringptrgps," time ", 12);
+        sprintf(timebuffer,"20%d-%d-%dT%d:%d:%dZ",GPS.year,GPS.month,GPS.day,GPS.hour,GPS.minute,GPS.seconds);
+        strncat(stringptrgps,timebuffer,25);
+        strncat(stringptrgps," speed1 ", 10);
+        dtostrf(GPS.speed, 4, 0, stringbuffer);
+        strncat(stringptrgps,stringbuffer, 10);
+        strncat(stringptrgps," speed2 ", 10);
+        dtostrf(speed_kph, 4, 0, stringbuffer);
+        strncat(stringptrgps,stringbuffer, 10);
+        strncat(stringptrgps," dist ", 10);
+        dtostrf(dist, 4, 0, stringbuffer);
+        strncat(stringptrgps,stringbuffer, 10);
+        strncat(stringptrgps, "\r\n", 2);
+    
+    
+        // Rad. lets log it!
+        Serial.println("Log");
+    
+        uint8_t stringsize = strlen(stringptrgps);
+        if (stringsize != logfile.write(stringptrgps, stringsize))    //write the string to the SD file
+            error(4);
+        if (strstr(stringptrgps, "lat")){
+          logfile.flush();
+          Serial.print(stringptrgps);
+        }
+    //    Serial.println();
+      }
 
-// Calculate speed and distance
 
-//  double dist = distance_on_geoid(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
-//  double time_s = (p2.timestamp - p1.timestamp) / 1000.0;
-//  double speed_mps = dist / time_s;
-//  double speed_kph = (speed_mps * 3600.0) / 1000.0;
 
-    strcpy(stringptr,"lat ");
-    dtostrf(GPS.latitudeDegrees, 7, 4, stringbuffer);
-    strncat(stringptr,stringbuffer, 10);
-    strncat(stringptr," lon ", 10);
-    dtostrf(GPS.longitudeDegrees, 7, 4, stringbuffer);
-    strncat(stringptr,stringbuffer, 10);       
-    strncat(stringptr," ele ", 10);
-    dtostrf(GPS.altitude, 4, 0, stringbuffer);
-    strncat(stringptr,stringbuffer, 10);
-    strncat(stringptr," time ", 12);
-    sprintf(timebuffer,"20%d-%d-%dT%d:%d:%dZ",GPS.year,GPS.month,GPS.day,GPS.hour,GPS.minute,GPS.seconds);
-    strncat(stringptr,timebuffer,25);
-
-    strcat(stringptr, "t ");
-    dtostrf(millis()/1000, 8, 2, stringbuffer);
-    strncat(stringptr,stringbuffer, 10);
-    strncat(stringptr, " aX ", 5);   
-    dtostrf(ax, 6, 2, stringbuffer);
-    strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, " aY ", 5);   
-    dtostrf(ay, 6, 2, stringbuffer);
-    strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, " aZ ", 5);   
-    dtostrf(az, 6, 2, stringbuffer);
-    strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, " yaw ", 6); 
-    dtostrf(yaw, 6, 2, stringbuffer);
-    strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, " roll ", 6); 
-    dtostrf(roll, 6, 2, stringbuffer);
-    strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, " pitch ", 7); 
-    dtostrf(pitch, 6, 2, stringbuffer);
-    strncat(stringptr, stringbuffer,10);
-    strncat(stringptr, "\r\n", 2);
-
-    // Rad. lets log it!
-//    Serial.println("Log");
-
-    uint8_t stringsize = strlen(stringptr);
-    if (stringsize != logfile.write(stringptr, stringsize))    //write the string to the SD file
-        error(4);
-    if (strstr(stringptr, "lat")){
-      logfile.flush();
-//      Serial.print(stringptr);
-    }
-//    Serial.println();
-  }
 }
 
 float convertRawAcceleration(int aRaw) {
@@ -369,4 +405,40 @@ float convertRawAcceleration(int aRaw) {
   float a = (aRaw * 2.0) / 32768.0;
 
   return a;
+}
+
+//
+//
+double distance_on_geoid(double lat1, double lon1, double lat2, double lon2) {
+
+  // Convert degrees to radians
+  lat1 = lat1 * M_PI / 180.0;
+  lon1 = lon1 * M_PI / 180.0;
+
+  lat2 = lat2 * M_PI / 180.0;
+  lon2 = lon2 * M_PI / 180.0;
+
+  // radius of earth in metres
+  double r = 6378100;
+
+  // P
+  double rho1 = r * cos(lat1);
+  double z1 = r * sin(lat1);
+  double x1 = rho1 * cos(lon1);
+  double y1 = rho1 * sin(lon1);
+
+  // Q
+  double rho2 = r * cos(lat2);
+  double z2 = r * sin(lat2);
+  double x2 = rho2 * cos(lon2);
+  double y2 = rho2 * sin(lon2);
+
+  // Dot product
+  double dot = (x1 * x2 + y1 * y2 + z1 * z2);
+  double cos_theta = dot / (r * r);
+
+  double theta = acos(cos_theta);
+
+  // Distance in Metres
+  return r * theta;
 }
