@@ -19,10 +19,11 @@
 #include <MadgwickAHRS.h>
 
 #define M_PI 3.141592653589793238462643
+#define SPEED_AVG 10
 
 // ******************* Timer Setup **************
 unsigned long lastStreamTime = 0;     //To store the last streamed time stamp
-const int streamPeriod = 1000;          //To stream at 1Hz without using additional timers (time period(ms) =1000/frequency(Hz))
+const int streamPeriod = 200;          //To stream at 1Hz without using additional timers (time period(ms) =1000/frequency(Hz))
 
 // ******************* Curie Setup **************
 
@@ -230,16 +231,19 @@ void setup()
 }
 
 uint32_t timer = millis();
+int first_time = 0;
+double p1latitude, p2latitude, p1longitude, p2longitude, p1timestamp, p2timestamp; 
+double total_distance = 0, dist_prev = 0, dist_speed = 0;
+double t_start=0, t_end = 1, time_s;
+int dist_count = 0;
+double speed_kph = 0;
 
 void loop() {
   char stringptrgps [200];
   char stringptrsensor [200];
   char stringbuffer[10];
   char timebuffer[25];
-
-  double p1latitude=0, p2latitude=0, p1longitude=0, p2longitude=0, p1timestamp=0, p2timestamp=0;
-
-
+   
   
     //************  Read GPS data ************
     
@@ -262,18 +266,10 @@ void loop() {
       roll = filter.getRoll()*180/3.1415;
       pitch = filter.getPitch()*180/3.1415;
     
-      // these methods (and a few others) are also available
-    
-      //CurieIMU.readAcceleration(ax, ay, az);
-      //CurieIMU.readRotation(gx, gy, gz);
-    
-      //ax = CurieIMU.readAccelerometer(X_AXIS);
-      //ay = CurieIMU.readAccelerometer(Y_AXIS);
-      //az = CurieIMU.readAccelerometer(Z_AXIS);
-      //gx = CurieIMU.readGyro(X_AXIS);
-      //gy = CurieIMU.readGyro(Y_AXIS);
-      //gz = CurieIMU.readGyro(Z_AXIS);
-    
+
+  if ((millis() - lastStreamTime) >= streamPeriod)
+  {
+    lastStreamTime = millis();
     
     // Print Sensor data to SDcard
     
@@ -301,16 +297,14 @@ void loop() {
         strncat(stringptrsensor, stringbuffer,10);
         strncat(stringptrsensor, "\r\n", 2);
 
-  if ((millis() - lastStreamTime) >= streamPeriod)
-  {
-    lastStreamTime = millis();
+
     
         uint8_t stringsize = strlen(stringptrsensor);
           if (stringsize != logfile.write(stringptrsensor, stringsize))    //write the string to the SD file
               error(4);
           if (strstr(stringptrsensor, "sensor")){
             logfile.flush();
-            Serial.print(stringptrsensor);
+//            Serial.print(stringptrsensor);
           }
 
    }
@@ -342,17 +336,38 @@ void loop() {
     
     p1latitude = GPS.latitudeDegrees;
     p1longitude = GPS.longitudeDegrees;
-    p1timestamp = GPS.milliseconds;
+    p1timestamp = GPS.seconds;
+
+    if(first_time == 0){
+      Serial.print("First Time");
+        p2latitude = p1latitude;
+        p2longitude = p1longitude;
+        first_time = 1;
+    }
     
       double dist = distance_on_geoid(p1latitude, p1longitude, p2latitude, p2longitude);
-      double time_s = (p2timestamp - p1timestamp)/1000;  
-      double speed_mps = dist / time_s;
-      double speed_kph = (speed_mps * 3600.0) / 1000.0;
-    
-    p2latitude = p1latitude;
-    p2longitude = p1longitude;
-    p2timestamp = p1timestamp;
-    
+      if(isnan(dist)) dist = dist_prev;
+
+      dist_speed += dist;
+      t_end = GPS.seconds;
+      if (dist_count == SPEED_AVG){
+        if (t_end < t_start) t_end += 60;
+        time_s = t_end - t_start;
+        double speed_mps = dist_speed / time_s;
+        speed_kph = (speed_mps * 3600.0) / 1000.0;
+        dist_speed = 0;
+        t_start = GPS.seconds;
+        dist_count = 0;
+      }
+      dist_count++;
+      
+      dist_prev = dist;
+      p2latitude = p1latitude;
+      p2longitude = p1longitude;
+  
+      total_distance += dist;
+
+
     
     //Print out GPS data to SDcard
     
@@ -369,13 +384,13 @@ void loop() {
         sprintf(timebuffer,"20%d-%d-%dT%d:%d:%dZ",GPS.year,GPS.month,GPS.day,GPS.hour,GPS.minute,GPS.seconds);
         strncat(stringptrgps,timebuffer,25);
         strncat(stringptrgps," speed1 ", 10);
-        dtostrf(GPS.speed, 4, 0, stringbuffer);
+        dtostrf(GPS.speed, 4, 1, stringbuffer);
         strncat(stringptrgps,stringbuffer, 10);
         strncat(stringptrgps," speed2 ", 10);
-        dtostrf(speed_kph, 4, 0, stringbuffer);
+        dtostrf(speed_kph, 4, 1, stringbuffer);
         strncat(stringptrgps,stringbuffer, 10);
         strncat(stringptrgps," dist ", 10);
-        dtostrf(dist, 4, 0, stringbuffer);
+        dtostrf(total_distance, 6, 0, stringbuffer);
         strncat(stringptrgps,stringbuffer, 10);
         strncat(stringptrgps, "\r\n", 2);
     
