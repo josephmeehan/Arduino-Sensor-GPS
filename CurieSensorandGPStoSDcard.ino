@@ -28,7 +28,7 @@ const int streamPeriod = 200;          //To stream at 1Hz without using addition
 // ******************* Curie Setup **************
 
 Madgwick filter;
-int factor = 180;
+int factor = 800;
 float yaw, roll, pitch;
 
 int ax, ay, az;         // accelerometer values
@@ -304,7 +304,7 @@ void loop() {
               error(4);
           if (strstr(stringptrsensor, "sensor")){
             logfile.flush();
-//            Serial.print(stringptrsensor);
+            Serial.print(stringptrsensor);
           }
 
    }
@@ -326,7 +326,7 @@ void loop() {
           
         }
         // Sentence parsed! 
-        Serial.println("OK");
+//        Serial.println("OK");
         if (LOG_FIXONLY && !GPS.fix) {
           Serial.print("No Fix");
           return;
@@ -339,7 +339,7 @@ void loop() {
     p1timestamp = GPS.seconds;
 
     if(first_time == 0){
-      Serial.print("First Time");
+//      Serial.print("First Time");
         p2latitude = p1latitude;
         p2longitude = p1longitude;
         first_time = 1;
@@ -396,14 +396,14 @@ void loop() {
     
     
         // Rad. lets log it!
-        Serial.println("Log");
+//        Serial.println("Log");
     
         uint8_t stringsize = strlen(stringptrgps);
         if (stringsize != logfile.write(stringptrgps, stringsize))    //write the string to the SD file
             error(4);
         if (strstr(stringptrgps, "lat")){
           logfile.flush();
-          Serial.print(stringptrgps);
+//          Serial.print(stringptrgps);
         }
     //    Serial.println();
       }
